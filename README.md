@@ -1,6 +1,6 @@
 # Squeek Power Planner 🐹
 
-**Live:** https://ceyz.github.io/squeek-power-planner/
+**Live:** https://squeek-power-planner.duckdns.org/
 
 A SqueekFi calculator for [Squeekchain](https://squeekchain.com). Every completed Squeek block issues SQK, shared by
 power, and power comes from the Squeeks you deposit **and** the SQK you stake with them. This page answers the
