@@ -1,5 +1,7 @@
 # Squeek Power Planner 🐹
 
+**Live:** https://ceyz.github.io/squeek-power-planner/
+
 A SqueekFi calculator for [Squeekchain](https://squeekchain.com). Every completed Squeek block issues SQK, shared by
 power, and power comes from the Squeeks you deposit **and** the SQK you stake with them. This page answers the
 questions that rule raises:
