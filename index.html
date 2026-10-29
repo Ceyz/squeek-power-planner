@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Squeek Power Planner</title>
+    <meta name="description" content="What your Squeeks and staked SQK earn under Squeekchain's Proof of Squeek rule, when merging pays, and what one more Squeek is worth in SQK." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐹</text></svg>" />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="src/app.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="kicker">SqueekFi · Proof of Squeek</p>
+        <h1>Squeek Power Planner</h1>
+        <p class="lede">
+          Your share of every Squeek block comes from your Squeeks and the SQK you stake with them. Plan your position, see
+          when merging pays, and what one more Squeek is worth in SQK.
+        </p>
+      </header>
+
+      <section class="card" aria-labelledby="h-position">
+        <h2 id="h-position">1. Your position</h2>
+        <div class="levels" id="levels"></div>
+        <label class="field">
+          <span>SQK staked</span>
+          <input id="staked" type="number" min="0" step="1000" value="0" inputmode="numeric" />
+        </label>
+        <div class="tiles">
+          <div class="tile"><span class="label">NFT power P</span><span class="value" id="out-nft">–</span></div>
+          <div class="tile"><span class="label">SQK multiplier</span><span class="value" id="out-mult">–</span></div>
+          <div class="tile"><span class="label">SQK power Q</span><span class="value" id="out-sqk">–</span></div>
+          <div class="tile strong"><span class="label">Your power W</span><span class="value" id="out-total">–</span></div>
+        </div>
+        <p class="note" id="out-deposit"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-network">
+        <h2 id="h-network">2. Everyone else, and the schedule</h2>
+        <div class="grid2">
+          <label class="field">
+            <span>Network scenario</span>
+            <select id="preset">
+              <option value="launch-l1">Launch: all 9,999 Squeeks deposited at level 1, no SQK staked</option>
+              <option value="testnet">Sepolia testnet right now (live)</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Issuance phase</span>
+            <select id="phase"></select>
+          </label>
+          <label class="field">
+            <span>Everyone else's NFT power</span>
+            <input id="others-nft" type="number" min="0" step="1000" inputmode="numeric" />
+          </label>
+          <label class="field">
+            <span>Everyone else's SQK power</span>
+            <input id="others-sqk" type="number" min="0" step="1000" inputmode="numeric" />
+          </label>
+          <label class="field">
+            <span>Squeek blocks a day</span>
+            <input id="pace" type="number" min="1" step="1" value="1078" inputmode="numeric" />
+            <button id="use-pace" type="button" class="link" hidden></button>
+          </label>
+          <label class="field full">
+            <span>Power rule</span>
+            <select id="rule">
+              <option value="staking">Proof of Squeek: W = P + S × (1 + P / 1,000) / c</option>
+              <option value="nft-only">NFT power only (older docs)</option>
+            </select>
+          </label>
+          <label class="field" id="c-field">
+            <span><code>c</code>, SQK per unit of power</span>
+            <input id="c" type="number" min="1" step="1" value="40" inputmode="numeric" />
+            <small>TBD at launch; 40 on the testnet.</small>
+          </label>
+        </div>
+        <p class="note" id="live-status"></p>
+        <div class="tiles">
+          <div class="tile"><span class="label">Your share</span><span class="value" id="out-share">–</span></div>
+          <div class="tile"><span class="label">SQK per block</span><span class="value" id="out-perblock">–</span></div>
+          <div class="tile strong"><span class="label">Your SQK a day</span><span class="value" id="out-day">–</span></div>
+          <div class="tile"><span class="label">SQK in 30 days</span><span class="value" id="out-month">–</span></div>
+        </div>
+        <p class="note">Everyone else's power is held fixed. In reality it moves as people deposit, merge and restake.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-merge">
+        <h2 id="h-merge">3. Should you merge?</h2>
+        <div class="grid2">
+          <label class="field">
+            <span>Merge up to level</span>
+            <select id="target"></select>
+          </label>
+          <label class="check">
+            <input id="fresh" type="checkbox" />
+            <span>My Squeeks are fresh mints (wait the level 1 cooldown first)</span>
+          </label>
+        </div>
+        <div id="merge-out" class="merge-out"></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-swap" id="swap-card">
+        <h2 id="h-swap">4. One more Squeek, or more SQK?</h2>
+        <p>At your current position, adding one Squeek gives as much power as staking this much SQK:</p>
+        <table class="swap">
+          <thead>
+            <tr><th scope="col">Add one</th><th scope="col">NFT power</th><th scope="col">Same power as staking</th></tr>
+          </thead>
+          <tbody id="swap-rows"></tbody>
+        </table>
+        <p class="note" id="swap-note"></p>
+      </section>
+
+      <section class="card model" aria-labelledby="h-model">
+        <h2 id="h-model">How the numbers are made</h2>
+        <p>
+          Every completed Squeek block issues SQK, shared by power: <code>share = W / (W + everyone else)</code>, with
+          <code>W = P + S × (1 + P / P_ref) / c</code>. <code>P</code> is the NFT power of your deposited Squeeks,
+          <code>S</code> your staked SQK, <code>P_ref = 1,000</code>.
+        </p>
+        <ul>
+          <li>The formula was checked against <code>Staking.quotePower</code> on the Sepolia testnet, and reproduces the whitepaper's own concentration example (96.5%).</li>
+          <li>Level power 1,000 to 1,207,269 (×2.2 a level), merge cooldowns and the three-year halving schedule come from the whitepaper; the testnet uses the same values.</li>
+          <li>One account deposits at most 100 Squeeks (<code>Staking.MAX_TOKENS</code> on the testnet).</li>
+          <li><strong>Not final:</strong> staking is "in active development". <code>c</code>, the exit fee, the launch bonus and the year length are TBD or proposed, and an older docs page still describes 6,900 SQK per block with no staking.</li>
+          <li>Not modelled: the exit fee on unstaking, the stakers' share of the pool's swap fees, gas, and prices.</li>
+        </ul>
+        <p class="sources">
+          Sources: <a href="https://docs.squeekchain.com/whitepaper/" target="_blank" rel="noopener">whitepaper</a> ·
+          <a href="https://docs.squeekchain.com/squeeks/merge/" target="_blank" rel="noopener">merging</a> ·
+          <a href="https://docs.squeekchain.com/rewards/staking/" target="_blank" rel="noopener">staking</a> ·
+          <a href="https://api.squeekchain.com/v1/economy/state" target="_blank" rel="noopener">live testnet parameters</a>
+        </p>
+      </section>
+
+      <footer>Fan-made and unofficial; not affiliated with Squeekchain. Not financial advice: nothing here promises a price or a return.</footer>
+    </main>
+  </body>
+</html>

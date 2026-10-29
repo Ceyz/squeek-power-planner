@@ -1,0 +1,12 @@
+{
+  "name": "squeek-power-planner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "What your Squeeks and staked SQK earn under Squeekchain's Proof of Squeek rule, and when merging pays.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "start": "node scripts/serve.mjs"
+  }
+}
