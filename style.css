@@ -290,6 +290,236 @@ footer {
   font-size: 13px;
 }
 
+/* ---------- wallet ---------- */
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn.ghost {
+  background: var(--card);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wallet-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.wallet .intro {
+  margin: 0 0 14px;
+  color: var(--muted);
+}
+
+.connect-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+}
+
+.wallet-connect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.connected {
+  font-weight: 600;
+}
+
+.lookup {
+  display: flex;
+  gap: 8px;
+  flex: 1 1 280px;
+}
+
+.wallet-title {
+  margin: 20px 0 0;
+  font-size: 16px;
+}
+
+.tile .sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.note.warn,
+.tx-status.warn {
+  color: var(--warn);
+}
+
+.tx-status.ok {
+  color: var(--accent);
+}
+
+.note.fine {
+  font-size: 12px;
+  margin-top: 18px;
+}
+
+.squeek-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.squeek {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.squeek img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+}
+
+.squeek figcaption {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  justify-self: start;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge.earn {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge.idle {
+  background: var(--field);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.squeek-grid .more {
+  align-self: center;
+}
+
+.squeek-grid .empty {
+  grid-column: 1 / -1;
+}
+
+.squeek-grid .empty p {
+  margin: 0 0 4px;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 12px;
+}
+
+.step {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+}
+
+.step h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.step p {
+  margin: 6px 0;
+}
+
+.tx-list {
+  margin: 6px 0;
+  padding-left: 20px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.action .muted {
+  margin: 0;
+}
+
+.tx-status {
+  font-size: 14px;
+}
+
+.recent {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}
+
+.recent .tx-status {
+  margin: 4px 0;
+}
+
+.pairs {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.pair-art {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pair-art .squeek:last-child img {
+  opacity: 0.55;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -320,5 +550,20 @@ footer {
 
   .tile .value {
     font-size: 19px;
+  }
+
+  .action .btn,
+  .wallet-connect .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .wallet-connect,
+  .lookup {
+    flex-basis: 100%;
+  }
+
+  .pair {
+    grid-template-columns: 1fr;
   }
 }

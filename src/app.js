@@ -13,6 +13,7 @@ import {
   tokenCount,
 } from "./model.js";
 import { fetchPace, fetchTestnet } from "./live.js";
+import { initWallet } from "./wallet-ui.js";
 
 const $ = (id) => document.getElementById(id);
 const COLLECTION_SIZE = 9999;
@@ -114,7 +115,7 @@ function render() {
   const nftOnly = $("rule").value === "nft-only";
   const params = readParams();
   const pace = Math.max(1, num("pace"));
-  const phase = SCHEDULE.find((p) => p.id === $("phase").value) ?? SCHEDULE[0];
+  const phase = SCHEDULE.find((p) => p.id === $("phase").value) ?? measuredPhase() ?? SCHEDULE[0];
 
   $("c-field").hidden = nftOnly;
   applyPreset(counts);
@@ -236,13 +237,55 @@ function loadState() {
 
 // ---------- live data ----------
 
+const MEASURED = "testnet-stakers";
+
+/** What testnet depositors were actually paid per block (most issuance goes to the gacha vault). */
+function measuredPhase() {
+  if ($("phase").value !== MEASURED || !live.testnet) return null;
+  return { id: MEASURED, perBlock: live.testnet.stakerPerBlock };
+}
+
+/** Network figures the wallet section needs, or null until the testnet state has loaded. */
+function walletNetwork() {
+  if (!live.testnet) return null;
+  return {
+    totalPower: live.testnet.totalNftPower + live.testnet.totalSqkPower,
+    stakerPerBlock: live.testnet.stakerPerBlock,
+    blocksPerDay: live.pace?.blocksPerDay ?? Math.max(1, num("pace")),
+    params: { sqkPerPower: live.testnet.sqkPerPower, referencePower: live.testnet.referencePower },
+    cooldownBlocks: live.testnet.cooldownBlocks,
+  };
+}
+
+/** Put a real account's position in the planner, with everyone else as the rest of the testnet. */
+function fillFromAccount(account) {
+  const counts = emptyCounts();
+  for (const t of account.tokens) counts[t.level - 1] += 1;
+  counts.forEach((n, i) => ($(`lvl-${i + 1}`).value = String(n)));
+  $("staked").value = String(Math.round(account.staked));
+  $("rule").value = "staking";
+  if (live.testnet) {
+    $("preset").value = "custom";
+    $("others-nft").value = String(Math.round(Math.max(0, live.testnet.totalNftPower - account.nftPower)));
+    $("others-sqk").value = String(Math.round(Math.max(0, live.testnet.totalSqkPower - account.sqkPower)));
+    $("c").value = String(live.testnet.sqkPerPower);
+    $("phase").value = MEASURED;
+  }
+  if (live.pace) $("pace").value = String(Math.round(live.pace.blocksPerDay));
+  render();
+}
+
+const wallet = initWallet({ getNetwork: walletNetwork, fill: fillFromAccount, fmt: { num: fmtNum, pct: fmtPct, int: fmtInt } });
+
 async function loadLive() {
   try {
     live.testnet = await fetchTestnet();
     const same = live.testnet.levelPower.every((p, i) => p === LEVEL_POWER[i]);
     $("live-status").textContent =
       `Testnet now: ${fmtNum(live.testnet.totalNftPower)} NFT power and ${fmtNum(live.testnet.totalSqkPower)} SQK power deposited, ` +
-      `c = ${fmtNum(live.testnet.sqkPerPower)}. Level powers ${same ? "match" : "differ from"} the whitepaper.`;
+      `c = ${fmtNum(live.testnet.sqkPerPower)}. Level powers ${same ? "match" : "differ from"} the whitepaper. ` +
+      `Depositors have been paid ${fmtNum(live.testnet.stakerPerBlock)} SQK a block on average: most testnet issuance goes to the gacha vault.`;
+    $("phase").add(new Option(`Sepolia, what depositors were actually paid: ${fmtNum(live.testnet.stakerPerBlock)} SQK a block`, MEASURED));
   } catch {
     $("live-status").textContent = "Live testnet figures are unavailable right now; launch values still work.";
   }
@@ -261,6 +304,7 @@ async function loadLive() {
     // The whitepaper's 1,078 blocks a day stays.
   }
   render();
+  wallet.render();
 }
 
 // ---------- boot ----------

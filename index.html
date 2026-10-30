@@ -15,10 +15,47 @@
         <p class="kicker">SqueekFi · Proof of Squeek</p>
         <h1>Squeek Power Planner</h1>
         <p class="lede">
-          Your share of every Squeek block comes from your Squeeks and the SQK you stake with them. Plan your position, see
-          when merging pays, and what one more Squeek is worth in SQK.
+          Your share of every Squeek block comes from your Squeeks and the SQK you stake with them. Connect your wallet to
+          see what yours earn and act on it in one click, then plan ahead: when merging pays, and what one more Squeek is
+          worth in SQK.
         </p>
       </header>
+
+      <section class="card wallet" aria-labelledby="h-wallet">
+        <h2 id="h-wallet">Your Squeeks, live on the testnet</h2>
+        <p class="intro">
+          The page reads your Squeeks on Squeekchain's Sepolia testnet, tells you what to do next with the numbers, and sends
+          each move from your own wallet. Or look at any address.
+        </p>
+        <div class="connect-row">
+          <div id="wallet-connect" class="wallet-connect"></div>
+          <form id="lookup" class="lookup">
+            <input id="lookup-address" type="text" placeholder="0x… any address" autocomplete="off" spellcheck="false" aria-label="Address to look up" />
+            <button type="submit" class="btn ghost">Look up</button>
+          </form>
+          <button id="example" type="button" class="link">See an example holder</button>
+        </div>
+        <p id="wallet-status" class="note" aria-live="polite"></p>
+
+        <div id="wallet-out" hidden>
+          <h3 id="wallet-title" class="wallet-title">Your Squeeks</h3>
+          <div class="tiles" id="wallet-tiles"></div>
+          <p class="note" id="wallet-extra"></p>
+          <p class="note warn" id="wallet-gas" hidden></p>
+          <div class="squeek-grid" id="squeek-grid"></div>
+          <h3 class="wallet-title" id="moves-title">Next moves</h3>
+          <ul class="recent" id="wallet-recent"></ul>
+          <ol class="steps" id="wallet-steps"></ol>
+          <p class="note" id="wallet-cooling"></p>
+          <button id="fill" type="button" class="link">Load this position into the planner below</button>
+          <p class="note fine">
+            Every move is dry-run first and goes straight from your wallet to Squeekchain's own contracts on Sepolia (Squeek NFT
+            <code>0xcb98…b70f</code>, Staking <code>0x4b67…ea4f</code>); nothing moves without your confirmation. SQK a day uses
+            what depositors were actually paid per block so far, at the measured pace. Testnet tokens have no value. These are
+            direct calls to Squeekchain's tracked contracts, the kind the Genesis campaign's "The Tester" badge asks for.
+          </p>
+        </div>
+      </section>
 
       <section class="card" aria-labelledby="h-position">
         <h2 id="h-position">1. Your position</h2>

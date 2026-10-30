@@ -66,6 +66,12 @@ The Sepolia testnet runs the same shape without the premine (`issuanceSchedule()
 A "year" is a number of blocks, not a calendar year: the whitepaper sizes it at 1,078 blocks a day, and a busier
 hamster finishes it sooner.
 
+**What testnet depositors actually get.** On Sepolia almost all issuance goes to the gacha vault: by block 4,135,
+`mining.stakingFundedBaseUnits` was 66,881 SQK against 16.39M for the vault, so depositors were paid about 16 SQK a
+block. The planner offers that figure as the "Sepolia, what depositors were actually paid" phase, and the wallet section
+uses it for every "SQK a day" estimate. Checked against a real depositor: one level 1 Squeek, 1.45% of the deposited
+power, earned 882 SQK over its first three days, close to the 253 a day the estimate gives.
+
 ## Known conflicts and what is left out
 
 - The docs page "How SQK is issued" and the developer reference still describe an older deployment: 6,900 SQK per
@@ -83,3 +89,7 @@ hamster finishes it sooner.
   https://docs.squeekchain.com/rewards/staking/, https://docs.squeekchain.com/rewards/creation/
 - Developer reference: https://docs.squeekchain.com/developers/mining/
 - Live testnet parameters: https://api.squeekchain.com/v1/economy/state
+- Accounts and Squeeks: https://api.squeekchain.com/v1/accounts/{address}, https://api.squeekchain.com/v1/squeeks/{id}
+- Contract calls (Squeek NFT `0xcb98349c…b70f`, Staking `0x4b67b739…ea4f` on Sepolia): ABIs from Squeekchain's own app,
+  as the contracts are not verified on an explorer; every call the page sends was dry-run with `eth_simulateV1` from a
+  real holder's address (approve, batch deposit, claim and stake, deposited merge).

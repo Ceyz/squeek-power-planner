@@ -3,18 +3,23 @@
 
 const API = "https://api.squeekchain.com";
 
-const fromWei = (value) => Number(BigInt(value) / 10n ** 12n) / 1e6;
+export const fromWei = (value) => Number(BigInt(value) / 10n ** 12n) / 1e6;
 
-async function getJson(path) {
+export async function getJson(path) {
   const res = await fetch(`${API}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(`${path}: HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
 /** Testnet staking totals and power parameters. */
 export async function fetchTestnet() {
   const state = await getJson("/v1/economy/state");
-  const { staking, nft } = state;
+  const { staking, nft, mining } = state;
+  const fundedBlocks = Number(mining.fundedBlocks);
   return {
     totalNftPower: fromWei(staking.totalNftPower),
     totalSqkPower: fromWei(staking.totalSqkPower),
@@ -22,6 +27,11 @@ export async function fetchTestnet() {
     sqkPerPower: fromWei(staking.sqkPerPower),
     referencePower: fromWei(staking.referencePower),
     levelPower: nft.basePower.map(Number),
+    // Most testnet issuance goes to the gacha vault: this is what depositors were actually paid per block.
+    stakerPerBlock: fundedBlocks > 0 ? fromWei(mining.stakingFundedBaseUnits) / fundedBlocks : 0,
+    cooldownBlocks: nft.cooldownBlocks.map(Number),
+    mergesOpen: nft.mergesOpen,
+    stakingPaused: staking.paused,
     generatedAt: state.generatedAt,
   };
 }
