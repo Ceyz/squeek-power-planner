@@ -36,6 +36,34 @@ export async function fetchTestnet() {
   };
 }
 
+/**
+ * The wheel at `nowMs`, from `/v1/status`: how fast the hamster runs, whether the reading is
+ * fresh, how far it has run, and how much of the next Squeek block is built.
+ */
+export function parseStatus(status, nowMs = Date.now()) {
+  const m = status?.measurement ?? {};
+  const builder = status?.builder?.status === "available" ? status.builder : null;
+  const head = builder?.projected ?? builder?.anchor ?? null;
+  const observed = Date.parse(m.observedAt ?? "");
+  const stale = !(m.freshness === "online" && nowMs - observed <= Number(m.staleAfterSeconds ?? 120) * 1000);
+  const rpm = stale ? 0 : Math.max(0, Number(m.rpmMilli ?? 0) / 1000);
+  return {
+    stale,
+    running: rpm > 0,
+    rpm,
+    // Distance run in the current Squeek day (they start at 12:00 UTC).
+    todayKm: m.distanceMm === undefined ? null : Number(m.distanceMm) / 1e6,
+    height: head ? Number(head.blockHeight) : null,
+    // blockProgress counts billionths of the next block.
+    progress: head ? Math.min(1, Math.max(0, Number(head.blockProgress) / 1e9)) : null,
+    settledAt: builder?.anchor?.confirmedAt ?? null,
+  };
+}
+
+export async function fetchStatus() {
+  return parseStatus(await getJson("/v1/status"), Date.now());
+}
+
 /** Squeek blocks a day since the wheel was first observed on this deployment. */
 export async function fetchPace() {
   const stats = await getJson("/v1/measurement/stats?range=7d");

@@ -4,29 +4,78 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Squeek Power Planner</title>
-    <meta name="description" content="What your Squeeks and staked SQK earn under Squeekchain's Proof of Squeek rule, when merging pays, and what one more Squeek is worth in SQK." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐹</text></svg>" />
+    <meta name="description" content="What your Squeeks and staked SQK earn under Squeekchain's Proof of Squeek rule, the next move for your own Squeeks, when merging pays, and what one more Squeek is worth in SQK." />
+    <meta name="theme-color" content="#f8eedb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#17111d" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="fonts/pixelify-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/rubik.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="style.css" />
     <script type="module" src="src/app.js"></script>
   </head>
   <body>
-    <main>
-      <header>
-        <p class="kicker">SqueekFi · Proof of Squeek</p>
-        <h1>Squeek Power Planner</h1>
-        <p class="lede">
-          Your share of every Squeek block comes from your Squeeks and the SQK you stake with them. Connect your wallet to
-          see what yours earn and act on it in one click, then plan ahead: when merging pays, and what one more Squeek is
-          worth in SQK.
-        </p>
-      </header>
+    <a class="skip" href="#wallet">Skip to your Squeeks</a>
 
-      <section class="card wallet" aria-labelledby="h-wallet">
-        <h2 id="h-wallet">Your Squeeks, live on the testnet</h2>
-        <p class="intro">
-          The page reads your Squeeks on Squeekchain's Sepolia testnet, tells you what to do next with the numbers, and sends
-          each move from your own wallet. Or look at any address.
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="kicker"><span class="tag">SqueekFi</span> Proof of Squeek planner</p>
+        <h1>Squeek Power<br />Planner</h1>
+        <p class="lede">
+          Every Squeek block pays out by power. See what your Squeeks earn, make the next move in one click, and plan
+          ahead: when a merge pays, and what one more Squeek is worth in SQK.
         </p>
+        <nav class="jump" aria-label="Sections">
+          <a href="#wallet"><span data-icon="star"></span>Your Squeeks</a>
+          <a href="#h-position">Position</a>
+          <a href="#h-network">Earnings</a>
+          <a href="#h-merge">Merge</a>
+          <a href="#h-swap">Squeek or SQK</a>
+        </nav>
+      </div>
+
+      <aside class="wheel" id="wheel" data-mood="idle" aria-labelledby="wheel-title">
+        <h2 class="sr-only" id="wheel-title">The Squeekchain wheel right now</h2>
+        <div class="wheel-stage" aria-hidden="true">
+          <svg class="wheel-ring" viewBox="0 0 120 120">
+            <g class="spokes">
+              <line x1="60" y1="60" x2="60" y2="9" />
+              <line x1="60" y1="60" x2="96" y2="24" />
+              <line x1="60" y1="60" x2="111" y2="60" />
+              <line x1="60" y1="60" x2="96" y2="96" />
+              <line x1="60" y1="60" x2="60" y2="111" />
+              <line x1="60" y1="60" x2="24" y2="96" />
+              <line x1="60" y1="60" x2="9" y2="60" />
+              <line x1="60" y1="60" x2="24" y2="24" />
+            </g>
+            <circle class="rungs" cx="60" cy="60" r="50" />
+            <circle class="rim" cx="60" cy="60" r="55" />
+            <circle class="hub" cx="60" cy="60" r="6" />
+          </svg>
+          <div class="wheel-hamster" id="wheel-hamster"></div>
+          <span class="zzz"><span>z</span><span>z</span><span>z</span></span>
+        </div>
+        <div class="wheel-info">
+          <p class="wheel-state" id="wheel-state" aria-live="polite">Reading the wheel…</p>
+          <p class="wheel-km" id="wheel-km"></p>
+          <p class="wheel-block"><span id="wheel-block"></span><span id="wheel-pct"></span></p>
+          <div class="bar" id="wheel-bar" role="progressbar" aria-label="Next Squeek block built" aria-valuemin="0" aria-valuemax="100" hidden><span></span></div>
+          <p class="wheel-note" id="wheel-note"></p>
+        </div>
+      </aside>
+    </header>
+
+    <main>
+      <section class="card wallet" id="wallet" aria-labelledby="h-wallet">
+        <div class="section-head">
+          <span class="medal" data-tone="accent" aria-hidden="true"><span data-icon="star"></span></span>
+          <div>
+            <h2 id="h-wallet">Your Squeeks, live on the testnet</h2>
+            <p class="intro">
+              Reads your Squeeks on Squeekchain's Sepolia testnet, works out the next move with the numbers, and sends it
+              from your own wallet. Or look at any address.
+            </p>
+          </div>
+        </div>
         <div class="connect-row">
           <div id="wallet-connect" class="wallet-connect"></div>
           <form id="lookup" class="lookup">
@@ -38,16 +87,23 @@
         <p id="wallet-status" class="note" aria-live="polite"></p>
 
         <div id="wallet-out" hidden>
-          <h3 id="wallet-title" class="wallet-title">Your Squeeks</h3>
+          <div class="player">
+            <div class="player-avatar" id="wallet-avatar"></div>
+            <div>
+              <h3 id="wallet-title" class="wallet-title">Your Squeeks</h3>
+              <p class="player-sub" id="wallet-sub"></p>
+            </div>
+          </div>
           <div class="tiles" id="wallet-tiles"></div>
           <p class="note" id="wallet-extra"></p>
           <p class="note warn" id="wallet-gas" hidden></p>
+          <div class="milestones" id="wallet-milestones"></div>
           <div class="squeek-grid" id="squeek-grid"></div>
-          <h3 class="wallet-title" id="moves-title">Next moves</h3>
+          <h3 class="wallet-title moves-title" id="moves-title">Next moves</h3>
           <ul class="recent" id="wallet-recent"></ul>
           <ol class="steps" id="wallet-steps"></ol>
           <p class="note" id="wallet-cooling"></p>
-          <button id="fill" type="button" class="link">Load this position into the planner below</button>
+          <button id="fill" type="button" class="btn ghost fill">Load this position into the planner below</button>
           <p class="note fine">
             Every move is dry-run first and goes straight from your wallet to Squeekchain's own contracts on Sepolia (Squeek NFT
             <code>0xcb98…b70f</code>, Staking <code>0x4b67…ea4f</code>); nothing moves without your confirmation. SQK a day uses
@@ -58,23 +114,38 @@
       </section>
 
       <section class="card" aria-labelledby="h-position">
-        <h2 id="h-position">1. Your position</h2>
+        <div class="section-head">
+          <span class="medal" data-tone="gold" aria-hidden="true">1</span>
+          <div>
+            <h2 id="h-position"><span class="sr-only">1. </span>Your position</h2>
+            <p class="intro">How many Squeeks of each level you deposit, and the SQK you stake with them.</p>
+          </div>
+        </div>
         <div class="levels" id="levels"></div>
-        <label class="field">
+        <label class="field staked-field">
           <span>SQK staked</span>
           <input id="staked" type="number" min="0" step="1000" value="0" inputmode="numeric" />
         </label>
         <div class="tiles">
-          <div class="tile"><span class="label">NFT power P</span><span class="value" id="out-nft">–</span></div>
+          <div class="tile power"><span class="label"><span data-icon="bolt"></span>NFT power P</span><span class="value" id="out-nft">–</span></div>
           <div class="tile"><span class="label">SQK multiplier</span><span class="value" id="out-mult">–</span></div>
-          <div class="tile"><span class="label">SQK power Q</span><span class="value" id="out-sqk">–</span></div>
-          <div class="tile strong"><span class="label">Your power W</span><span class="value" id="out-total">–</span></div>
+          <div class="tile power"><span class="label"><span data-icon="bolt"></span>SQK power Q</span><span class="value" id="out-sqk">–</span></div>
+          <div class="tile strong"><span class="label"><span data-icon="bolt"></span>Your power W</span><span class="value" id="out-total">–</span></div>
         </div>
-        <p class="note" id="out-deposit"></p>
+        <div class="slots">
+          <div class="meter" id="slots-meter" aria-hidden="true"><span></span></div>
+          <p class="note" id="out-deposit"></p>
+        </div>
       </section>
 
       <section class="card" aria-labelledby="h-network">
-        <h2 id="h-network">2. Everyone else, and the schedule</h2>
+        <div class="section-head">
+          <span class="medal" data-tone="blue" aria-hidden="true">2</span>
+          <div>
+            <h2 id="h-network"><span class="sr-only">2. </span>Everyone else, and the schedule</h2>
+            <p class="intro">Your share is your power against everyone else's, applied to each block's SQK.</p>
+          </div>
+        </div>
         <div class="grid2">
           <label class="field">
             <span>Network scenario</span>
@@ -117,15 +188,22 @@
         <p class="note" id="live-status"></p>
         <div class="tiles">
           <div class="tile"><span class="label">Your share</span><span class="value" id="out-share">–</span></div>
-          <div class="tile"><span class="label">SQK per block</span><span class="value" id="out-perblock">–</span></div>
-          <div class="tile strong"><span class="label">Your SQK a day</span><span class="value" id="out-day">–</span></div>
-          <div class="tile"><span class="label">SQK in 30 days</span><span class="value" id="out-month">–</span></div>
+          <div class="tile"><span class="label"><span data-icon="coin"></span>SQK per block</span><span class="value" id="out-perblock">–</span></div>
+          <div class="tile strong"><span class="label"><span data-icon="coin"></span>Your SQK a day</span><span class="value" id="out-day">–</span></div>
+          <div class="tile"><span class="label"><span data-icon="coin"></span>SQK in 30 days</span><span class="value" id="out-month">–</span></div>
         </div>
+        <p class="note" id="out-blocks"></p>
         <p class="note">Everyone else's power is held fixed. In reality it moves as people deposit, merge and restake.</p>
       </section>
 
       <section class="card" aria-labelledby="h-merge">
-        <h2 id="h-merge">3. Should you merge?</h2>
+        <div class="section-head">
+          <span class="medal" data-tone="green" aria-hidden="true">3</span>
+          <div>
+            <h2 id="h-merge"><span class="sr-only">3. </span>Should you merge?</h2>
+            <p class="intro">Two Squeeks of a level make one of the next, worth 10% more than the pair.</p>
+          </div>
+        </div>
         <div class="grid2">
           <label class="field">
             <span>Merge up to level</span>
@@ -140,8 +218,13 @@
       </section>
 
       <section class="card" aria-labelledby="h-swap" id="swap-card">
-        <h2 id="h-swap">4. One more Squeek, or more SQK?</h2>
-        <p>At your current position, adding one Squeek gives as much power as staking this much SQK:</p>
+        <div class="section-head">
+          <span class="medal" data-tone="pink" aria-hidden="true">4</span>
+          <div>
+            <h2 id="h-swap"><span class="sr-only">4. </span>One more Squeek, or more SQK?</h2>
+            <p class="intro">At your current position, adding one Squeek gives as much power as staking this much SQK.</p>
+          </div>
+        </div>
         <table class="swap">
           <thead>
             <tr><th scope="col">Add one</th><th scope="col">NFT power</th><th scope="col">Same power as staking</th></tr>
@@ -152,28 +235,41 @@
       </section>
 
       <section class="card model" aria-labelledby="h-model">
-        <h2 id="h-model">How the numbers are made</h2>
-        <p>
-          Every completed Squeek block issues SQK, shared by power: <code>share = W / (W + everyone else)</code>, with
-          <code>W = P + S × (1 + P / P_ref) / c</code>. <code>P</code> is the NFT power of your deposited Squeeks,
-          <code>S</code> your staked SQK, <code>P_ref = 1,000</code>.
+        <p class="callout">
+          <strong>Not final:</strong> Squeekchain marks staking as "in active development". <code>c</code>, the exit fee,
+          the launch bonus and the year length are TBD or proposed, and an older docs page still describes 6,900 SQK per
+          block with no staking.
         </p>
-        <ul>
-          <li>The formula was checked against <code>Staking.quotePower</code> on the Sepolia testnet, and reproduces the whitepaper's own concentration example (96.5%).</li>
-          <li>Level power 1,000 to 1,207,269 (×2.2 a level), merge cooldowns and the three-year halving schedule come from the whitepaper; the testnet uses the same values.</li>
-          <li>One account deposits at most 100 Squeeks (<code>Staking.MAX_TOKENS</code> on the testnet).</li>
-          <li><strong>Not final:</strong> staking is "in active development". <code>c</code>, the exit fee, the launch bonus and the year length are TBD or proposed, and an older docs page still describes 6,900 SQK per block with no staking.</li>
-          <li>Not modelled: the exit fee on unstaking, the stakers' share of the pool's swap fees, gas, and prices.</li>
-        </ul>
-        <p class="sources">
-          Sources: <a href="https://docs.squeekchain.com/whitepaper/" target="_blank" rel="noopener">whitepaper</a> ·
-          <a href="https://docs.squeekchain.com/squeeks/merge/" target="_blank" rel="noopener">merging</a> ·
-          <a href="https://docs.squeekchain.com/rewards/staking/" target="_blank" rel="noopener">staking</a> ·
-          <a href="https://api.squeekchain.com/v1/economy/state" target="_blank" rel="noopener">live testnet parameters</a>
-        </p>
+        <details>
+          <summary><h2 id="h-model">How the numbers are made</h2></summary>
+          <p>
+            Every completed Squeek block issues SQK, shared by power: <code>share = W / (W + everyone else)</code>, with
+            <code>W = P + S × (1 + P / P_ref) / c</code>. <code>P</code> is the NFT power of your deposited Squeeks,
+            <code>S</code> your staked SQK, <code>P_ref = 1,000</code>.
+          </p>
+          <ul>
+            <li>The formula was checked against <code>Staking.quotePower</code> on the Sepolia testnet, and reproduces the whitepaper's own concentration example (96.5%).</li>
+            <li>Level power 1,000 to 1,207,269 (×2.2 a level), merge cooldowns and the three-year halving schedule come from the whitepaper; the testnet uses the same values.</li>
+            <li>One account deposits at most 100 Squeeks (<code>Staking.MAX_TOKENS</code> on the testnet).</li>
+            <li>The wheel at the top reads Squeekchain's public status every 30 seconds: the wheel's measured rpm and the Squeek block being built.</li>
+            <li>Not modelled: the exit fee on unstaking, the stakers' share of the pool's swap fees, gas, and prices.</li>
+          </ul>
+          <p class="sources">
+            Sources: <a href="https://docs.squeekchain.com/whitepaper/" target="_blank" rel="noopener">whitepaper</a> ·
+            <a href="https://docs.squeekchain.com/squeeks/merge/" target="_blank" rel="noopener">merging</a> ·
+            <a href="https://docs.squeekchain.com/rewards/staking/" target="_blank" rel="noopener">staking</a> ·
+            <a href="https://api.squeekchain.com/v1/economy/state" target="_blank" rel="noopener">live testnet parameters</a>
+          </p>
+        </details>
       </section>
-
-      <footer>Fan-made and unofficial; not affiliated with Squeekchain. Not financial advice: nothing here promises a price or a return.</footer>
     </main>
+
+    <footer>
+      <span class="footer-hamster" id="footer-hamster" aria-hidden="true"></span>
+      <p>
+        Fan-made and unofficial; not affiliated with Squeekchain. Not financial advice: nothing here promises a price or a
+        return. <a href="https://github.com/Ceyz/squeek-power-planner" target="_blank" rel="noopener">Source code</a>
+      </p>
+    </footer>
   </body>
 </html>

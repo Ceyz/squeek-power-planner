@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NFT, STAKING } from "../src/chain.js";
 import { LAUNCH_PARAMS } from "../src/model.js";
-import { applyMove, depositTxs, earning, pairs, planMoves, powerOf, summarize } from "../src/moves.js";
+import { applyMove, depositTxs, earning, milestones, pairs, planMoves, powerOf, summarize } from "../src/moves.js";
 
 const HOLDER = "0xffb26838df0c32966fc15a4b375a2759014f9108";
 const network = { totalPower: 69_200, stakerPerBlock: 16, blocksPerDay: 1000, params: LAUNCH_PARAMS };
@@ -120,4 +120,15 @@ test("applyMove patches the account until the API catches up", () => {
   acct = applyMove({ ...acct, claimable: 50, staked: 10 }, { type: "claimAndStake" });
   assert.deepEqual([acct.staked, acct.claimable], [60, 0]);
   assert.equal(applyMove(acct, { type: "approve" }), acct);
+});
+
+test("milestones follow the account's Squeeks and stake", () => {
+  const done = (acct) => milestones(acct).filter((m) => m.done).map((m) => m.id);
+  assert.deepEqual(done(account([])), []);
+  assert.deepEqual(done(wallet20()), []);
+  assert.deepEqual(done(account([token(1, 1, "staking"), token(2, 2, "wallet")])), ["deposit", "merge"]);
+  assert.deepEqual(done(account([token(1, 3, "staking")], { staked: 40 })), ["deposit", "all-in", "merge", "stake"]);
+  // At the deposit limit, Squeeks left in the wallet are not slackers.
+  const full = account([token(1, 1, "staking"), token(2, 1, "staking"), token(3, 1, "wallet")]);
+  assert.deepEqual(milestones(full, 2).filter((m) => m.done).map((m) => m.id), ["deposit", "all-in", "full"]);
 });

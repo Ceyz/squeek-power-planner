@@ -44,6 +44,24 @@ export function summarize(account, network) {
   };
 }
 
+/**
+ * This page's milestones for an account, from what it holds now. Not Squeekchain badges.
+ * `unlock` names the kind of move that gets a locked one closer.
+ */
+export function milestones(account, maxTokens = MAX_TOKENS) {
+  const deposited = account.tokens.filter(inStaking).length;
+  const top = account.tokens.reduce((max, t) => Math.max(max, t.level), 0);
+  return [
+    { id: "deposit", title: "Clocked in", detail: "A Squeek deposited and earning", done: deposited > 0, unlock: "deposit" },
+    { id: "all-in", title: "No slackers", detail: "No Squeek idle in the wallet", done: deposited > 0 && (deposited === account.tokens.length || deposited >= maxTokens), unlock: "deposit" },
+    { id: "merge", title: "Level up", detail: "Holds a level 2+ Squeek", done: top >= 2, unlock: "merge" },
+    { id: "stake", title: "Compounder", detail: "SQK staked with the Squeeks", done: account.staked > 0, unlock: "claim" },
+    { id: "ten", title: "Squad of ten", detail: "10 Squeeks deposited", done: deposited >= 10, unlock: "deposit" },
+    { id: "level5", title: "Heavyweight", detail: "Holds a level 5+ Squeek", done: top >= 5, unlock: "merge" },
+    { id: "full", title: "Full house", detail: `All ${maxTokens} deposit slots used`, done: deposited >= maxTokens, unlock: "deposit" },
+  ];
+}
+
 /** Squeek blocks until a Squeek can merge again (0 when ready). */
 export const cooldownLeft = (token, coreBlockHeight) => Math.max(0, token.nextMergeHeight - coreBlockHeight);
 

@@ -38,8 +38,10 @@ lets you switch to that NFT-only rule. Exit fees, pool fees, gas and prices are 
 ## Live data
 
 The page reads `api.squeekchain.com/v1/economy/state` for the testnet's deposited power and parameters,
-`/v1/measurement/stats` for the hamster's measured pace, and `/v1/accounts/{address}` and `/v1/squeeks/{id}` for a
-wallet's Squeeks and their on-chain art. Everything else runs in the browser; there is no backend.
+`/v1/measurement/stats` for the hamster's measured pace, `/v1/status` for the wheel at the top of the page (its rpm
+and the Squeek block being built, every 30 seconds), and `/v1/accounts/{address}` and `/v1/squeeks/{id}` for a
+wallet's Squeeks, their on-chain art and their Palette trait. Everything else runs in the browser; there is no backend,
+and the fonts are served from this site, so visitors' browsers contact no one but Squeekchain's API.
 
 ## Transactions
 
@@ -61,7 +63,7 @@ wallet, and turns the contracts' errors into plain sentences.
 
 ```bash
 npm start   # http://localhost:8080
-npm test    # model, calldata, account parsing and next-move checks
+npm test    # model, calldata, account parsing, next moves, milestones, wheel status and pixel art
 ```
 
 No dependencies and no build step; any static host works.
@@ -72,7 +74,10 @@ No dependencies and no build step; any static host works.
 - [`src/moves.js`](src/moves.js): an account's next moves and the transactions behind them (pure, tested).
 - [`src/chain.js`](src/chain.js): contract addresses, calldata, wallet helpers (EIP-6963 / EIP-1193).
 - [`src/account.js`](src/account.js): an account's Squeeks and rewards from the API, and their art.
-- [`src/live.js`](src/live.js): live testnet parameters and pace.
+- [`src/live.js`](src/live.js): live testnet parameters, pace and wheel status.
+- [`src/pixel.js`](src/pixel.js): the page's own pixel art (the hamster, its coats, the icons), as SVG strings.
+- [`src/fx.js`](src/fx.js), [`src/hero.js`](src/hero.js): count-ups, confetti, and the live wheel.
 - [`src/wallet-ui.js`](src/wallet-ui.js), [`src/app.js`](src/app.js), [`index.html`](index.html), [`style.css`](style.css): the page.
+- [`fonts/`](fonts/NOTICE.md): Pixelify Sans and Rubik, SIL Open Font License.
 
 Fan-made and unofficial; not affiliated with Squeekchain. Not financial advice. MIT licensed.

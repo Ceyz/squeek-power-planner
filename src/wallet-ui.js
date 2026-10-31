@@ -1,8 +1,10 @@
 // The "Your Squeeks" section: read a wallet's Squeeks on the testnet, show the next moves with
 // their numbers, and send each move from the user's own wallet.
 import { connect, discoverWallets, ensureSepolia, readApproved, readBalance, send, simulate, txLink, waitReceipt, walletError } from "./chain.js";
-import { fetchAccount, isAddress, squeekImage } from "./account.js";
-import { applyMove, cooldownLeft, earning, mergeTx, planMoves, summarize } from "./moves.js";
+import { fetchAccount, isAddress, squeekImage, squeekImageNow, squeekTraits } from "./account.js";
+import { applyMove, cooldownLeft, earning, mergeTx, milestones, planMoves, summarize } from "./moves.js";
+import { confetti, reducedMotion, setNumber } from "./fx.js";
+import { coatFor, hamsterSvg, iconSvg } from "./pixel.js";
 
 const EXAMPLE = "0x340c4cdb74ea6ccf98592b9e63ee80f814673ad7";
 const FAUCETS = [
@@ -15,15 +17,66 @@ const REFRESH_MS = 20_000;
 
 const $ = (id) => document.getElementById(id);
 const short = (address) => `${address.slice(0, 6)}…${address.slice(-4)}`;
+const levelColor = (level) => `var(--l${Math.min(10, Math.max(1, level))})`;
 
-/** Tiny DOM builder: el("p", { className: "x" }, "text", child). Strings become text nodes. */
+/**
+ * Tiny DOM builder: el("p", { className: "x" }, "text", child). Strings become text nodes;
+ * "aria-*" props become attributes.
+ */
 function el(tag, props = {}, ...children) {
-  const node = Object.assign(document.createElement(tag), props);
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (key.startsWith("aria-")) node.setAttribute(key, value);
+    else node[key] = value;
+  }
   node.append(...children.filter((c) => c !== null && c !== undefined && c !== false));
   return node;
 }
 
 const link = (href, text) => el("a", { href, target: "_blank", rel: "noopener", textContent: text });
+const icon = (name) => el("span", { className: "i", innerHTML: iconSvg(name) });
+
+function chip(level, extra = "") {
+  const node = el("span", { className: `chip ${extra}`, textContent: `L${level}` });
+  node.style.setProperty("--c", levelColor(level));
+  return node;
+}
+
+/** Replace a container's children with `nodes`, moving only the ones out of place. */
+function reconcile(parent, nodes) {
+  nodes.forEach((node, i) => {
+    if (parent.children[i] !== node) parent.insertBefore(node, parent.children[i] ?? null);
+  });
+  while (parent.children.length > nodes.length) parent.lastElementChild.remove();
+}
+
+/** Play the entry pop once, then drop it so moving the node later doesn't replay it. */
+function popIn(node) {
+  node.classList.add("pop-in");
+  node.addEventListener("animationend", () => node.classList.remove("pop-in"), { once: true });
+  return node;
+}
+
+const traitText = (id) => {
+  const t = squeekTraits(id);
+  return t ? [t.palette, t.illumination].filter(Boolean).join(" · ") : "";
+};
+
+/** A Squeek's art in an <img>, at once if it has loaded before, else when it arrives. */
+function art(id, onLoad) {
+  const img = el("img", { alt: `Squeek #${id}`, width: 112, height: 112, decoding: "async" });
+  const known = squeekImageNow(id);
+  if (known) img.src = known;
+  else if (known === null) img.classList.add("missing");
+  else {
+    squeekImage(id).then((uri) => {
+      if (uri) img.src = uri;
+      else img.classList.add("missing");
+      onLoad?.();
+    });
+  }
+  return img;
+}
 
 export function initWallet({ getNetwork, fill, fmt }) {
   const state = {
@@ -39,6 +92,15 @@ export function initWallet({ getNetwork, fill, fmt }) {
     swapped: new Set(),
     status: new Map(), // step key -> { text, hash, tone }
     refreshTimer: null,
+    // Display memory, so re-renders move what exists instead of rebuilding it.
+    tiles: null,
+    cards: new Map(), // Squeek id -> its card in the grid
+    more: null,
+    counted: new Set(), // addresses whose tiles already counted up from 0
+    seenSteps: new Set(),
+    trophies: null, // milestone ids done at the last render
+    celebrate: false, // a move just landed: a newly reached milestone gets confetti
+    cheered: new Set(), // tx hashes already celebrated
   };
 
   // ---------- current view ----------
@@ -73,6 +135,9 @@ export function initWallet({ getNetwork, fill, fmt }) {
       state.patches = [];
       state.status.clear();
       state.swapped.clear();
+      state.cards.clear();
+      state.seenSteps.clear();
+      state.trophies = null;
     }
     state.viewing = account;
     say(`Reading ${short(account)} on the Sepolia testnet…`);
@@ -147,6 +212,13 @@ export function initWallet({ getNetwork, fill, fmt }) {
     await view(state.connected);
   }
 
+  /** Confetti from a finished move's status line, once per transaction. */
+  function cheer(key, hash) {
+    if (state.cheered.has(hash)) return;
+    state.cheered.add(hash);
+    requestAnimationFrame(() => confetti(document.querySelector(`[data-status-key="${CSS.escape(key)}"]`)));
+  }
+
   async function run(key, txs, label) {
     const { provider } = state.wallet;
     state.busy = true;
@@ -180,7 +252,10 @@ export function initWallet({ getNetwork, fill, fmt }) {
         }
         if (tx.effect.type === "approve") state.approved = true;
         else state.patches.push({ effect: tx.effect, block: receipt.block });
-        set(i + 1 < txs.length ? `Done${of}.` : `${label}: done. The figures above already count it; Squeekchain's indexer confirms it in about 3 minutes.`, "ok", hash);
+        const last = i + 1 === txs.length;
+        if (last) state.celebrate = true;
+        set(last ? `${label}: done. The figures above already count it; Squeekchain's indexer confirms it in about 3 minutes.` : `Done${of}.`, "ok", hash);
+        if (last) cheer(key, hash);
       }
     } catch (err) {
       set(walletError(err), "warn");
@@ -218,20 +293,50 @@ export function initWallet({ getNetwork, fill, fmt }) {
     );
   }
 
-  function tile(label, value, sub, strong = false) {
-    return el("div", { className: `tile${strong ? " strong" : ""}` },
-      el("span", { className: "label", textContent: label }),
-      el("span", { className: "value", textContent: value }),
-      sub ? el("span", { className: "sub", textContent: sub }) : null);
+  function renderPlayer(acct) {
+    const avatar = $("wallet-avatar");
+    if (avatar.dataset.address !== acct.address) {
+      const coat = coatFor(acct.address);
+      avatar.dataset.address = acct.address;
+      avatar.title = `This page draws every address its own hamster: ${coat.name}.`;
+      avatar.innerHTML = hamsterSvg({ size: 46, coat });
+    }
+    const who = state.viewing === state.connected ? "Your" : `${short(state.viewing)}'s`;
+    $("wallet-title").textContent = `${who} Squeeks`;
+    $("wallet-sub").textContent = `${acct.address.slice(0, 10)}…${acct.address.slice(-8)} · Sepolia testnet`;
   }
 
-  function squeekFigure(id, caption, badge, tone) {
-    const img = el("img", { alt: `Squeek #${id}`, width: 96, height: 96, loading: "lazy" });
-    squeekImage(id).then((uri) => {
-      if (uri) img.src = uri;
-      else img.classList.add("missing");
-    });
-    return el("figure", { className: "squeek" }, img, el("figcaption", {}, el("span", { textContent: caption }), badge ? el("span", { className: `badge ${tone}`, textContent: badge }) : null));
+  function tiles() {
+    if (state.tiles) return state.tiles;
+    const make = (label, iconName, kind = "") => {
+      const value = el("span", { className: "value", textContent: "–" });
+      const sub = el("span", { className: "sub" });
+      const node = el("div", { className: `tile ${kind}` }, el("span", { className: "label" }, iconName ? icon(iconName) : null, label), value, sub);
+      return { node, value, sub };
+    };
+    state.tiles = {
+      earning: make("Earning", "bolt", "power"),
+      idle: make("Idle in the wallet", "zzz"),
+      share: make("Share of staking rewards"),
+      perDay: make("SQK a day", "coin", "strong"),
+    };
+    $("wallet-tiles").replaceChildren(...Object.values(state.tiles).map((t) => t.node));
+    return state.tiles;
+  }
+
+  function renderTiles(acct, sum, net) {
+    const t = tiles();
+    // The first time an address shows, its numbers count up from zero.
+    const from = state.counted.has(acct.address) ? {} : { from: 0 };
+    state.counted.add(acct.address);
+    setNumber(t.earning.value, sum.deposited, fmt.int, from);
+    setNumber(t.idle.value, sum.idle, fmt.int, from);
+    setNumber(t.share.value, sum.share, fmt.pct, from);
+    setNumber(t.perDay.value, sum.perDay, fmt.num, from);
+    t.earning.sub.textContent = `${fmt.num(sum.power.total)} power`;
+    t.idle.sub.textContent = sum.idle ? "earning nothing" : "none";
+    t.share.sub.textContent = `of ${fmt.num(Math.max(net.totalPower, sum.power.total))} power deposited`;
+    t.perDay.sub.textContent = `${fmt.num(acct.earnedWeek)} earned in 7 days`;
   }
 
   const days = (blocks, net) => {
@@ -239,28 +344,110 @@ export function initWallet({ getNetwork, fill, fmt }) {
     return d < 1 ? `≈ ${Math.max(1, Math.round(d * 24))} h` : `≈ ${fmt.num(d)} d`;
   };
 
+  /** A card in the grid, made once per Squeek and repainted in place. */
+  function gridCard(id) {
+    let card = state.cards.get(id);
+    if (card) return card;
+    const trait = el("span", { className: "trait", textContent: traitText(id) });
+    const frame = el("div", { className: "art" }, art(id, () => (trait.textContent = traitText(id))));
+    const lv = el("span", { className: "chip lv" });
+    const badge = el("span", { className: "badge" });
+    const wait = el("span", { className: "badge wait" });
+    const node = popIn(el("figure", { className: "squeek" }, lv, frame, el("figcaption", {}, el("span", { className: "id", textContent: `#${id}` }), trait, badge, wait)));
+    card = { node, frame, lv, badge, wait };
+    state.cards.set(id, card);
+    return card;
+  }
+
+  function paint(card, level) {
+    card.node.style.setProperty("--c", levelColor(level));
+    card.lv.style.setProperty("--c", levelColor(level));
+    card.lv.textContent = `L${level}`;
+    card.frame.classList.toggle("foil", level >= 8);
+  }
+
   function renderGrid(acct, net) {
     const sorted = [...acct.tokens].sort((a, b) => (a.custody === b.custody ? b.level - a.level || a.id - b.id : a.custody === "staking" ? -1 : 1));
-    const figures = sorted.slice(0, GRID_LIMIT).map((t) => {
+    const nodes = sorted.slice(0, GRID_LIMIT).map((t) => {
+      const card = gridCard(t.id);
+      paint(card, t.level);
+      const idle = t.custody === "wallet";
       const wait = cooldownLeft(t, acct.coreBlockHeight);
-      const [badge, tone] = t.custody === "wallet" ? ["Idle", "idle"] : t.mergeState === "cooldown" && wait > 0 ? [`Earning · merge in ${days(wait, net)}`, "earn"] : ["Earning", "earn"];
-      return squeekFigure(t.id, `#${t.id} · L${t.level}`, badge, tone);
+      card.node.classList.toggle("idle", idle);
+      card.badge.className = `badge ${idle ? "idle" : "earn"}`;
+      card.badge.textContent = idle ? "Idle" : "Earning";
+      card.wait.hidden = !(t.mergeState === "cooldown" && wait > 0);
+      card.wait.textContent = `Merge in ${days(wait, net)}`;
+      return card.node;
     });
-    if (sorted.length > GRID_LIMIT) figures.push(el("p", { className: "muted more", textContent: `and ${sorted.length - GRID_LIMIT} more` }));
-    $("squeek-grid").replaceChildren(...figures);
+    if (sorted.length > GRID_LIMIT) {
+      state.more ??= el("p", { className: "more" });
+      state.more.textContent = `+${sorted.length - GRID_LIMIT} more`;
+      nodes.push(state.more);
+    }
+    reconcile($("squeek-grid"), nodes);
+  }
+
+  function renderEmpty() {
+    $("squeek-grid").replaceChildren(el("div", { className: "empty", innerHTML: hamsterSvg({ size: 56, asleep: true }) },
+      el("div", {},
+        el("p", { textContent: "No Squeeks on this address. The free testnet claim ran out (9,988 Squeeks went to 645 wallets), so there's nothing to act on here yet; the planner below still works with any numbers." }),
+        el("button", { type: "button", className: "link", textContent: "See an example holder", onclick: () => view(EXAMPLE) }))));
+    $("wallet-milestones").replaceChildren();
+  }
+
+  function renderMilestones(acct, plan) {
+    const list = milestones(acct);
+    const done = new Set(list.filter((m) => m.done).map((m) => m.id));
+    const fresh = state.celebrate && state.trophies ? list.filter((m) => m.done && !state.trophies.has(m.id)).map((m) => m.id) : [];
+    state.trophies = done;
+    state.celebrate = false;
+    const stepFor = (kind) => plan.steps.find((s) => s.kind === kind || (kind === "merge" && s.kind === "merge-wallet"));
+    const items = list.map((m) => {
+      const body = [el("span", { className: "ico" }, icon(m.done ? "star" : "lock")), el("span", {}, el("b", { textContent: m.title }), el("small", { textContent: m.detail }))];
+      const step = m.done ? null : stepFor(m.unlock);
+      const node = step
+        ? el("a", { className: "trophy locked", href: `#step-${step.kind}`, title: "Go to the move that gets you closer" }, ...body)
+        : el("span", { className: `trophy${m.done ? "" : " locked"}${fresh.includes(m.id) ? " fresh" : ""}` }, ...body);
+      return el("li", {}, node);
+    });
+    const meter = el("div", { className: "meter" }, el("span"));
+    meter.setAttribute("aria-hidden", "true");
+    meter.style.setProperty("--p", String(done.size / list.length));
+    $("wallet-milestones").replaceChildren(
+      el("div", { className: "milestones-head" }, el("strong", { textContent: `${done.size}/${list.length}` }), meter, el("span", { textContent: "Planner milestones: this page's, not Squeekchain or Genesis badges" })),
+      el("ul", { className: "trophies" }, ...items),
+    );
+    if (fresh.length) requestAnimationFrame(() => confetti(document.querySelector(".trophy.fresh")));
   }
 
   function statusLine(key) {
     const s = state.status.get(key);
     if (!s) return null;
-    return el("p", { className: `tx-status ${s.tone}`, role: "status" }, s.text, s.hash ? " " : null, s.hash ? link(txLink(s.hash), "View on Etherscan") : null);
+    const line = el("p", { className: `tx-status ${s.tone}`, role: "status" }, s.text, s.hash ? " " : null, s.hash ? link(txLink(s.hash), "View on Etherscan") : null);
+    line.dataset.statusKey = key;
+    return line;
   }
 
-  function actionButton(text, onclick, blocked) {
+  function actionButton(key, text, onclick, blocked) {
     const reason = lockReason(blocked);
-    return el("div", { className: "action" },
-      el("button", { type: "button", className: "btn", textContent: text, disabled: Boolean(reason), onclick }),
-      reason ? el("span", { className: "muted", textContent: reason }) : null);
+    const button = el("button", { type: "button", className: "btn", textContent: text, disabled: Boolean(reason), onclick });
+    button.dataset.key = key;
+    return el("div", { className: "action" }, button, reason ? el("span", { className: "muted", textContent: reason }) : null);
+  }
+
+  function pill(kind, iconName, text) {
+    return el("span", { className: `pill ${kind}` }, iconName ? icon(iconName) : null, text);
+  }
+
+  /** What a step gains, as pills, from the same figures as its sentence. */
+  function gains(step, acct, net, ...extra) {
+    const a = earning(step.before, acct, net);
+    const b = earning(step.after, acct, net);
+    return el("div", { className: "pills" },
+      pill("power", "bolt", `+${fmt.num(step.after - step.before)} power`),
+      b.perDay > a.perDay ? pill("sqk", "coin", `≈ +${fmt.num(b.perDay - a.perDay)} SQK a day`) : null,
+      ...extra);
   }
 
   function changeLine(step, acct, net) {
@@ -269,39 +456,55 @@ export function initWallet({ getNetwork, fill, fmt }) {
     return `Your power ${fmt.num(step.before)} → ${fmt.num(step.after)}: share of staking rewards ${fmt.pct(a.share)} → ${fmt.pct(b.share)}, about ${fmt.num(a.perDay)} → ${fmt.num(b.perDay)} SQK a day.`;
   }
 
+  function miniCard(id, level, role) {
+    const frame = el("div", { className: "art" }, art(id));
+    frame.classList.toggle("foil", level >= 8);
+    const node = el("figure", { className: `squeek ${role}` }, chip(level, "lv"), frame, el("figcaption", {}, el("span", { className: "id", textContent: `${role === "keep" ? "Keep" : "Burn"} #${id}` })));
+    node.style.setProperty("--c", levelColor(level));
+    return node;
+  }
+
   function renderPair(pair, deposited, blocked) {
     const key = `merge:${pair.survivor}-${pair.donor}`;
     const flip = state.swapped.has(key);
     const keep = flip ? pair.donor : pair.survivor;
     const burn = flip ? pair.survivor : pair.donor;
-    const swap = el("button", { type: "button", className: "link", textContent: "Keep the other one", onclick: () => {
+    const swap = el("button", { type: "button", className: "link swap-pick", onclick: () => {
       if (flip) state.swapped.delete(key);
       else state.swapped.add(key);
       render();
-    } });
+    } }, icon("swap"), "Keep the other one");
+    swap.dataset.key = `swap:${key}`;
+    const result = el("span", { className: "result" }, `L${pair.level + 1}`, el("small", { textContent: `#${keep}` }));
+    result.style.setProperty("--c", levelColor(pair.level + 1));
     return el("li", { className: "pair" },
-      el("div", { className: "pair-art" }, squeekFigure(keep, `Keep #${keep}`, `L${pair.level} → L${pair.level + 1}`, "earn"), squeekFigure(burn, `Burn #${burn}`, null, "")),
+      el("div", { className: "pair-art", "aria-hidden": "true" }, miniCard(keep, pair.level, "keep"), el("span", { className: "op", textContent: "+" }), miniCard(burn, pair.level, "burn"), el("span", { className: "op" }, icon("arrow")), result),
       el("div", { className: "pair-body" },
-        el("p", { textContent: `+${fmt.num(pair.gain)} NFT power, and one deposit slot freed.` }),
+        el("p", { textContent: `Keep #${keep}, burn #${burn}: +${fmt.num(pair.gain)} NFT power, and one deposit slot freed.` }),
         swap,
-        actionButton(`Merge #${keep} + #${burn}`, () => run(key, [mergeTx({ ...pair, survivor: keep, donor: burn }, deposited)], `Merge #${keep} + #${burn}`), pair.afterDeposit && !blocked ? "After step 1: deposit them first." : blocked),
+        actionButton(key, `Merge #${keep} + #${burn}`, () => run(key, [mergeTx({ ...pair, survivor: keep, donor: burn }, deposited)], `Merge #${keep} + #${burn}`), pair.afterDeposit && !blocked ? "After step 1: deposit them first." : blocked),
         statusLine(key)));
   }
 
   function renderStep(step, n, acct, net) {
     const body = [];
     if (step.kind === "deposit") {
+      body.push(gains(step, acct, net, pill("info", null, `${step.txs.length} transaction${step.txs.length === 1 ? "" : "s"}`)));
       body.push(el("p", { textContent: `In your wallet they earn nothing. Deposited in Squeekchain's staking contract they do. ${changeLine(step, acct, net)} You can withdraw them later.` }));
       body.push(el("ul", { className: "tx-list" }, ...step.txs.map((tx) => el("li", { textContent: tx.label }))));
       const what = `Deposit ${step.ids.length} Squeek${step.ids.length === 1 ? "" : "s"}`;
-      body.push(actionButton(`${what}${step.txs.length > 1 ? ` (${step.txs.length} transactions)` : ""}`, () => run("deposit", step.txs, what), step.blocked));
+      body.push(actionButton("deposit", `${what}${step.txs.length > 1 ? ` (${step.txs.length} transactions)` : ""}`, () => run("deposit", step.txs, what), step.blocked));
       if (step.txs.some((tx) => tx.effect.type === "approve")) body.push(el("p", { className: "muted", textContent: "The approval lets Squeekchain's Staking contract, and only it, move your Squeeks when you deposit." }));
       body.push(statusLine("deposit"));
     } else if (step.kind === "claim") {
+      body.push(gains(step, acct, net, pill("sqk", "coin", `${fmt.num(step.amount)} SQK to stake`)));
       body.push(el("p", { textContent: `${fmt.num(step.amount)} SQK of rewards are waiting. Staked, SQK adds power too, multiplied by your Squeeks' power. ${changeLine(step, acct, net)}` }));
-      body.push(actionButton(`Claim and stake ${fmt.num(step.amount)} SQK`, () => run("claim", step.txs, `Claim and stake ${fmt.num(step.amount)} SQK`), step.blocked));
+      body.push(actionButton("claim", `Claim and stake ${fmt.num(step.amount)} SQK`, () => run("claim", step.txs, `Claim and stake ${fmt.num(step.amount)} SQK`), step.blocked));
       body.push(statusLine("claim"));
     } else if (step.kind === "merge" || step.kind === "merge-wallet") {
+      const burned = pill("cost", "flame", `−${step.pairs.length} Squeek${step.pairs.length === 1 ? "" : "s"} burned`);
+      const cooldown = pill("info", "lock", "Cooldown before the next merge");
+      body.push(step.kind === "merge" ? gains(step, acct, net, burned, cooldown) : el("div", { className: "pills" }, burned, cooldown));
       body.push(el("p", { textContent: "Two Squeeks of the same level make one of the next level with 10% more power. The other one is burned for good, so you'll hold fewer Squeeks, and the survivor waits out a cooldown before its next merge." }));
       if (step.kind === "merge") body.push(el("p", { textContent: `All ${step.pairs.length}: ${changeLine(step, acct, net)}` }));
       const shown = step.pairs.slice(0, PAIRS_SHOWN);
@@ -311,7 +514,19 @@ export function initWallet({ getNetwork, fill, fmt }) {
     } else {
       body.push(el("p", { className: "muted", textContent: step.blocked }));
     }
-    return el("li", { className: "step" }, el("h3", { textContent: `${n}. ${step.title}` }), ...body);
+    return stepCard(step.kind, String(n), step.title, body);
+  }
+
+  function stepCard(kind, n, title, body) {
+    const li = el("li", { className: "step", id: `step-${kind}` },
+      el("span", { className: "step-num", "aria-hidden": "true", textContent: n }),
+      el("div", { className: "step-body" }, el("h3", {}, el("span", { className: "sr-only", textContent: `${n}. ` }), title), ...body));
+    li.dataset.kind = kind;
+    if (!state.seenSteps.has(kind)) {
+      state.seenSteps.add(kind);
+      popIn(li);
+    }
+    return li;
   }
 
   function render() {
@@ -324,15 +539,12 @@ export function initWallet({ getNetwork, fill, fmt }) {
       say("Loading the testnet's figures…");
       return;
     }
+    // Rebuilding the moves drops focus from a clicked button: put it back on its replacement.
+    const focusKey = document.activeElement?.closest?.("#wallet-out [data-key]")?.dataset.key;
+
     const sum = summarize(acct, net);
-    const who = state.viewing === state.connected ? "Your" : `${short(state.viewing)}'s`;
-    $("wallet-title").textContent = `${who} Squeeks`;
-    $("wallet-tiles").replaceChildren(
-      tile("Earning", fmt.int(sum.deposited), `${fmt.num(sum.power.total)} power`),
-      tile("Idle in the wallet", fmt.int(sum.idle), sum.idle ? "earning nothing" : "none"),
-      tile("Share of staking rewards", fmt.pct(sum.share), `of ${fmt.num(Math.max(net.totalPower, sum.power.total))} power deposited`),
-      tile("SQK a day", fmt.num(sum.perDay), `${fmt.num(acct.earnedWeek)} earned in 7 days`, true),
-    );
+    renderPlayer(acct);
+    renderTiles(acct, sum, net);
     $("wallet-extra").textContent = [
       `Staked: ${fmt.num(acct.staked)} SQK`,
       `To claim: ${fmt.num(acct.claimable)} SQK`,
@@ -340,23 +552,23 @@ export function initWallet({ getNetwork, fill, fmt }) {
       ...acct.problems,
     ].join(" · ");
 
+    const plan = planMoves(acct, net, { approved: state.approved });
     const empty = acct.tokens.length === 0;
     $("moves-title").hidden = empty;
     $("fill").hidden = empty;
-    if (empty) {
-      $("squeek-grid").replaceChildren(el("div", { className: "empty" },
-        el("p", { className: "muted", textContent: "No Squeeks on this address. The free testnet claim ran out (9,988 Squeeks went to 645 wallets), so there's nothing to act on here yet; the planner below still works with any numbers." }),
-        el("button", { type: "button", className: "link", textContent: "See an example holder", onclick: () => view(EXAMPLE) })));
-    } else {
+    if (empty) renderEmpty();
+    else {
       renderGrid(acct, net);
+      renderMilestones(acct, plan);
     }
 
-    const plan = planMoves(acct, net, { approved: state.approved });
     const steps = plan.steps.map((step, i) => renderStep(step, i + 1, acct, net));
     // A finished step disappears from the plan; its outcome stays visible here.
     const shown = new Set(plan.steps.flatMap((s) => (s.pairs ? s.pairs.map((p) => `merge:${p.survivor}-${p.donor}`) : [s.kind])));
     $("wallet-recent").replaceChildren(...[...state.status.keys()].filter((key) => !shown.has(key)).map((key) => el("li", {}, statusLine(key))));
-    if (acct.tokens.length > 0 && steps.length === 0) steps.push(el("li", { className: "step" }, el("h3", { textContent: "Nothing to do right now" }), el("p", { className: "muted", textContent: "Everything is deposited, nothing is waiting to be claimed and no pair is ready to merge." })));
+    if (!empty && steps.length === 0) {
+      steps.push(stepCard("none", "✓", "Nothing to do right now", [el("p", { className: "muted", textContent: "Everything is deposited, nothing is waiting to be claimed and no pair is ready to merge." })]));
+    }
     $("wallet-steps").replaceChildren(...steps);
     $("wallet-cooling").textContent = plan.cooling.length
       ? `Cooling down: ${plan.cooling.slice(0, 8).map((c) => `#${c.id} (L${c.level}) can merge in ${fmt.int(c.blocksLeft)} Squeek blocks, ${days(c.blocksLeft, net)}`).join("; ")}${plan.cooling.length > 8 ? "…" : ""}.`
@@ -368,8 +580,13 @@ export function initWallet({ getNetwork, fill, fmt }) {
 
     $("fill").onclick = () => {
       fill(acct);
-      $("h-position").scrollIntoView({ behavior: "smooth" });
+      $("h-position").scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth" });
     };
+
+    if (focusKey) {
+      const again = document.querySelector(`#wallet-out [data-key="${CSS.escape(focusKey)}"]`);
+      if (again && document.activeElement !== again) again.focus({ preventScroll: true });
+    }
   }
 
   // ---------- boot ----------

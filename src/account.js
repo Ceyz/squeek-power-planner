@@ -75,6 +75,8 @@ export function normalizeAccount(pages) {
 // ---------- art ----------
 
 const images = new Map();
+const loaded = new Map(); // id -> uri or null, once known: lets a re-render show art without a blank frame
+const traits = new Map(); // id -> { palette, illumination } from the same metadata
 const queue = [];
 let running = 0;
 const PARALLEL = 4;
@@ -86,11 +88,14 @@ function pump() {
     getJson(`/v1/squeeks/${id}`)
       .then((squeek) => {
         const uri = squeek.metadata?.imageDataUri;
+        const trait = (type) => squeek.metadata?.attributes?.find((a) => a.traitType === type)?.value ?? null;
+        traits.set(id, { palette: trait("Palette"), illumination: trait("Illumination") });
         return typeof uri === "string" && uri.startsWith("data:image/svg+xml;base64,") ? uri : null;
       })
       .catch(() => null)
       .then((uri) => {
         running--;
+        loaded.set(id, uri);
         resolve(uri);
         pump();
       });
@@ -107,3 +112,9 @@ export function squeekImage(id) {
   }
   return images.get(id);
 }
+
+/** The art if it has already loaded (undefined if not yet known). */
+export const squeekImageNow = (id) => loaded.get(id);
+
+/** A Squeek's Palette and Illumination traits, once its metadata has loaded. */
+export const squeekTraits = (id) => traits.get(id) ?? null;

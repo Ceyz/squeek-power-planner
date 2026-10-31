@@ -14,6 +14,9 @@ import {
 } from "./model.js";
 import { fetchPace, fetchTestnet } from "./live.js";
 import { initWallet } from "./wallet-ui.js";
+import { initHero } from "./hero.js";
+import { setNumber, setText } from "./fx.js";
+import { hamsterSvg, iconSvg } from "./pixel.js";
 
 const $ = (id) => document.getElementById(id);
 const COLLECTION_SIZE = 9999;
@@ -52,23 +55,29 @@ function describeCounts(counts) {
 
 // ---------- inputs ----------
 
+/** One card per level: its colour, its power, and a −/+ stepper around the count. */
 function buildLevelInputs() {
   const wrap = $("levels");
   for (let level = 1; level <= MAX_LEVEL; level++) {
-    const label = document.createElement("label");
-    label.className = "level";
-    label.innerHTML = `<span class="lvl">L${level}</span><span class="pw">${fmtInt(LEVEL_POWER[level - 1])}</span>`;
-    const input = document.createElement("input");
-    input.type = "number";
-    input.min = "0";
-    input.step = "1";
-    input.value = "0";
-    input.inputMode = "numeric";
-    input.id = `lvl-${level}`;
-    input.setAttribute("aria-label", `Level ${level} Squeeks`);
-    label.append(input);
-    wrap.append(label);
+    // A <div>, not a <label>: a label would press its first button when the "L3" chip is clicked.
+    const card = document.createElement("div");
+    card.className = `level${level >= 8 ? " foil" : ""}`;
+    card.style.setProperty("--c", `var(--l${level})`);
+    card.innerHTML =
+      `<div class="level-head"><label class="chip" for="lvl-${level}" style="--c: var(--l${level})">L${level}</label>` +
+      `<span class="pw">${iconSvg("bolt")}${fmtInt(LEVEL_POWER[level - 1])}</span></div>` +
+      `<div class="stepper"><button type="button" data-step="-1" aria-label="One fewer level ${level} Squeek">−</button>` +
+      `<input id="lvl-${level}" type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="Level ${level} Squeeks" />` +
+      `<button type="button" data-step="1" aria-label="One more level ${level} Squeek">+</button></div>`;
+    wrap.append(card);
   }
+  wrap.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-step]");
+    if (!button) return;
+    const input = button.parentElement.querySelector("input");
+    input.value = String(Math.max(0, (Math.floor(Number(input.value)) || 0) + Number(button.dataset.step)));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
 
 function fillSelects() {
@@ -123,22 +132,32 @@ function render() {
 
   // 1. Position
   const me = accountPower(counts, staked, params, { nftOnly });
-  $("out-nft").textContent = fmtNum(me.nft);
-  $("out-mult").textContent = nftOnly ? "n/a" : `× ${fmtNum(me.multiplier)}`;
-  $("out-sqk").textContent = fmtNum(me.sqk);
-  $("out-total").textContent = fmtNum(me.total);
+  counts.forEach((n, i) => $(`lvl-${i + 1}`).closest(".level").classList.toggle("has", n > 0));
+  setNumber($("out-nft"), me.nft, fmtNum);
+  if (nftOnly) setText($("out-mult"), "n/a");
+  else setNumber($("out-mult"), me.multiplier, (x) => `× ${fmtNum(x)}`);
+  setNumber($("out-sqk"), me.sqk, fmtNum);
+  setNumber($("out-total"), me.total, fmtNum);
+  $("slots-meter").style.setProperty("--p", String(Math.min(1, tokenCount(counts) / MAX_TOKENS)));
+  $("slots-meter").classList.toggle("over", me.idle > 0);
   $("out-deposit").textContent =
     me.idle > 0
-      ? `⚠️ Only ${MAX_TOKENS} Squeeks fit in one account: ${me.idle} of yours earn nothing until you merge them.`
+      ? `Only ${MAX_TOKENS} Squeeks fit in one account: ${me.idle} of yours earn nothing until you merge them.`
       : `${me.deposited} of ${MAX_TOKENS} deposit slots used.`;
+  $("out-deposit").classList.toggle("warn", me.idle > 0);
 
   // 2. Share and SQK
   const share = shareOf(me.total, others);
   const perDay = sqkPerDay(share, phase.perBlock, pace);
-  $("out-share").textContent = fmtPct(share);
-  $("out-perblock").textContent = fmtNum(phase.perBlock * share);
-  $("out-day").textContent = fmtNum(perDay);
-  $("out-month").textContent = fmtNum(perDay * 30);
+  setNumber($("out-share"), share, fmtPct);
+  setNumber($("out-perblock"), phase.perBlock * share, fmtNum);
+  setNumber($("out-day"), perDay, fmtNum);
+  setNumber($("out-month"), perDay * 30, fmtNum);
+  // A share is easier to feel as "one whole block of SQK every N blocks".
+  $("out-blocks").textContent =
+    share > 0 && share < 1
+      ? `That's a whole block's SQK every ${fmtNum(1 / share)} blocks: ${fmtDays(1 / share, pace).replace("≈ ", "about ")} at ${fmtInt(pace)} blocks a day.`
+      : "";
 
   renderMerge(counts, staked, params, nftOnly, others, phase, pace, me, perDay);
   renderSwap(counts, staked, params, nftOnly);
@@ -173,6 +192,12 @@ function renderMerge(counts, staked, params, nftOnly, others, phase, pace, me, p
   ];
   if (me.idle > 0) rows.push(["Deposit limit", `${me.idle} idle Squeeks → ${after.idle}: merging puts them to work`]);
 
+  // The same before → after as level chips, for the eye; the list below says it in words.
+  const ladder = document.createElement("div");
+  ladder.className = "ladder";
+  ladder.setAttribute("aria-hidden", "true");
+  ladder.append(levelChips(counts), Object.assign(document.createElement("span"), { className: "arrow", innerHTML: iconSvg("arrow") }), levelChips(plan.counts));
+
   const dl = document.createElement("dl");
   for (const [k, v] of rows) {
     const dt = document.createElement("dt");
@@ -187,7 +212,23 @@ function renderMerge(counts, staked, params, nftOnly, others, phase, pace, me, p
     "Every merge adds 10% of the pair's NFT power" +
     (nftOnly ? "" : " and raises your SQK multiplier") +
     ", so power only goes up. What you give up: a Squeek you could have sold, and the survivor waits out its next cooldown. Merges are permanent.";
-  out.replaceChildren(dl, verdict);
+  out.replaceChildren(ladder, dl, verdict);
+}
+
+function levelChip(level, text = `L${level}`) {
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  chip.style.setProperty("--c", `var(--l${level})`);
+  chip.textContent = text;
+  return chip;
+}
+
+/** "3 × L1, 1 × L2" as coloured chips. */
+function levelChips(counts) {
+  const wrap = document.createElement("span");
+  wrap.className = "chips";
+  counts.forEach((n, i) => n > 0 && wrap.append(levelChip(i + 1, `${n} × L${i + 1}`)));
+  return wrap;
 }
 
 function renderSwap(counts, staked, params, nftOnly) {
@@ -197,11 +238,12 @@ function renderSwap(counts, staked, params, nftOnly) {
   for (let level = 1; level <= 5; level++) {
     const tr = document.createElement("tr");
     const sqk = squeekInSqk(level, counts, staked, params);
-    for (const text of [`Level ${level} Squeek`, fmtInt(LEVEL_POWER[level - 1]), `${fmtNum(sqk)} SQK`]) {
+    for (const text of ["Squeek", fmtInt(LEVEL_POWER[level - 1]), `${fmtNum(sqk)} SQK`]) {
       const td = document.createElement("td");
       td.textContent = text;
       tr.append(td);
     }
+    tr.firstChild.prepend(levelChip(level));
     rows.push(tr);
   }
   $("swap-rows").replaceChildren(...rows);
@@ -309,6 +351,9 @@ async function loadLive() {
 
 // ---------- boot ----------
 
+for (const slot of document.querySelectorAll("[data-icon]")) slot.innerHTML = iconSvg(slot.dataset.icon);
+$("footer-hamster").innerHTML = hamsterSvg({ size: 32, asleep: true });
+initHero({ fmt: { num: fmtNum, int: fmtInt } });
 buildLevelInputs();
 fillSelects();
 if (!loadState()) $("lvl-1").value = "4";
